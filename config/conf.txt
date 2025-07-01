@@ -1,0 +1,7 @@
+db_path=db/scraper_data.db
+delay=1000
+max_depth=2
+expiration=60
+log_file=logs/ninja.log
+log_refresh=2000
+dash_refresh=5000

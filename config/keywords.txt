@@ -1,0 +1,28 @@
+cea.fr
+beaune
+dijon
+french
+nuclear
+radioactive
+valduc
+mail.edu
+root
+ftp
+credit cards
+cvv
+ssn
+passwords
+credentials
+token
+auth
+OTP
+exploit 
+ransomware
+Cobalt Strike
+metasploit
+shell
+webmail
+sql
+rdp
+cpanel
+ssh
