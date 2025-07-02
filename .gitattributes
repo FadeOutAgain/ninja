@@ -1,0 +1,25 @@
+# 🔧 Normalise tous les fichiers texte en LF (Unix)
+* text=auto eol=lf
+
+# 📜 Scripts shell
+*.sh text eol=lf
+*.zsh text eol=lf
+*.bash text eol=lf
+
+# 🐍 Python
+*.py text eol=lf
+
+# 📄 Fichiers de configuration
+*.conf text eol=lf
+*.ini  text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.txt  text eol=lf
+*.md   text eol=lf
+
+# ⚙️ Ne jamais modifier les fichiers binaires
+*.png binary
+*.jpg binary
+*.zip binary
+*.pdf binary
