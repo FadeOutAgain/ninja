@@ -17,5 +17,9 @@ echo "📚 Installation de dash, beautifulsoup4 et pandas..."
 pip install dash beautifulsoup4 pandas
 
 # Fin
+
+echo "🛢️ Préparation de la base de données..."
+python init_db.py
+
 echo "✅ Environnement prêt. Activez-le avec :"
 echo "   source dash-env/bin/activate"
