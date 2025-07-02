@@ -1,10 +1,1 @@
-[Desktop Entry]
-Version=1.0
-Type=Application
-Name=🥷🏼 Ninja
-Comment=
-Exec=/home/user/Desktop/ninja/app-run.sh
-Icon=applications-utilities
-Path=/home/user/Desktop/ninja
-Terminal=true
-StartupNotify=false
+
