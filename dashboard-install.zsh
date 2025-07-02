@@ -14,7 +14,7 @@ pip install --upgrade pip
 
 # Installation des modules nécessaires
 echo "📚 Installation de dash, beautifulsoup4 et pandas..."
-pip install dash beautifulsoup4 pandas
+pip install dash beautifulsoup4 colorama pandas
 
 # Fin
 
