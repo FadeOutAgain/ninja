@@ -1,94 +1,87 @@
 # pages/show.py
 
 import dash
-from dash import html
+from dash import html, dcc, callback, Input, Output
 import sqlite3
 import os
 
-dash.register_page(__name__, path="/show", name="👁️ Show")
+dash.register_page(__name__, path="/show", name="🛢️ SHOW - État de la base de données")
 
-# Chargement de la configuration
-def charger_config(path='config/conf.txt'):
-    config = {}
+DB_PATH = "db/scraper_data.db"
+CONFIG_DIR = "config"
+
+def lire_table(table, limit=10):
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+    cur.execute(f"SELECT * FROM {table} ORDER BY rowid DESC LIMIT ?", (limit,))
+    rows = cur.fetchall()
+    conn.close()
+
+    if not rows:
+        return html.Div(f"Aucune donnée dans {table}.", style={"color": "gray"})
+
+    colonnes = rows[0].keys()
+
+    en_tete = html.Tr([html.Th(c) for c in colonnes])
+    lignes = []
+
+    for row in rows:
+        ligne = []
+        for col in colonnes:
+            valeur = str(row[col])
+            if col == "texte":
+                courte = (valeur[:50] + "…") if len(valeur) > 50 else valeur
+                cellule = html.Td(courte, title=valeur)
+            else:
+                cellule = html.Td(valeur)
+            ligne.append(cellule)
+        lignes.append(html.Tr(ligne))
+
+    return html.Table([html.Thead(en_tete), html.Tbody(lignes)],
+                      style={"borderCollapse": "collapse", "width": "100%", "marginBottom": "10px"})
+
+def lire_fichier(chemin):
     try:
-        with open(path, 'r', encoding='utf-8') as f:
-            for ligne in f:
-                if '=' in ligne:
-                    cle, val = ligne.strip().split('=', 1)
-                    config[cle.strip()] = val.strip()
-    except Exception:
-        pass
-    config.setdefault('db_path', 'db/scraper_data.db')
-    return config
-
-config = charger_config()
-db_path = config['db_path']
-
-def compter_lignes(table):
-    try:
-        conn = sqlite3.connect(db_path)
-        cur = conn.cursor()
-        cur.execute(f"SELECT COUNT(*) FROM {table}")
-        result = cur.fetchone()[0]
-        conn.close()
-        return result
+        with open(chemin, "r", encoding="utf-8") as f:
+            contenu = f.read()
+        lignes = contenu.strip().splitlines()
+        return html.Div([
+            html.H4(f"📄 {os.path.basename(chemin)}"),
+            html.Pre("\n".join(lignes), style={"backgroundColor": "#f9f9f9", "padding": "10px"})
+        ])
     except Exception as e:
-        return f"Erreur ({table}) : {e}"
-
-def lire_fichier(path, max_lines=40):
-    if not os.path.exists(path):
-        return f"Fichier introuvable : {path}"
-    with open(path, 'r', encoding='utf-8', errors='ignore') as f:
-        lignes = f.readlines()
-        return ''.join(lignes[-max_lines:])
-
-def lire_derniers_enregistrements(table, colonnes, limit=10):
-    try:
-        conn = sqlite3.connect(db_path)
-        cur = conn.cursor()
-        cur.execute(f"SELECT {', '.join(colonnes)} FROM {table} ORDER BY ROWID DESC LIMIT ?", (limit,))
-        lignes = cur.fetchall()
-        conn.close()
-        return '\n'.join([str(dict(zip(colonnes, ligne))) for ligne in lignes])
-    except Exception as e:
-        return f"Erreur de lecture : {e}"
+        return html.Div(f"Erreur lecture {chemin} : {e}", style={"color": "red"})
 
 layout = html.Div([
-    html.H3("📂 Informations sur la base de données"),
+    html.H2("🛢 État de la base de données et des fichiers"),
 
-    html.Ul([
-        html.Li(f"MOTS_CLES : {compter_lignes('MOTS_CLES')} entrée(s)"),
-        html.Li(f"SITES_A_VISITER : {compter_lignes('SITES_A_VISITER')} site(s)"),
-        html.Li(f"PAGES_A_VISITER : {compter_lignes('PAGES_A_VISITER')} page(s)"),
-        html.Li(f"PAGE_VISITEE : {compter_lignes('PAGE_VISITEE')} page(s)"),
-        html.Li(f"CONTENU_RECUPERE : {compter_lignes('CONTENU_RECUPERE')} contenu(s)"),
-    ]),
+    dcc.Interval(
+        id="show-rafraichissement",
+        interval=30 * 1000,
+        n_intervals=0
+    ),
 
-    html.Hr(),
-
-    html.H4("📄 Fichier de configuration"),
-    html.Pre(lire_fichier('config/conf.txt'), style={"backgroundColor": "#f9f9f9"}),
-
-    html.H4("🔑 Mots-clés (keywords.txt)"),
-    html.Pre(lire_fichier('config/keywords.txt'), style={"backgroundColor": "#f9f9f9"}),
-
-    html.H4("🌐 URLs à visiter (url.txt)"),
-    html.Pre(lire_fichier('config/url.txt'), style={"backgroundColor": "#f9f9f9"}),
-
-    html.Hr(),
-
-    html.H4("🧾 10 dernières entrées — MOTS_CLES"),
-    html.Pre(lire_derniers_enregistrements('MOTS_CLES', ['mot']), style={"backgroundColor": "#f0f0f0"}),
-
-    html.H4("🧾 10 dernières entrées — SITES_A_VISITER"),
-    html.Pre(lire_derniers_enregistrements('SITES_A_VISITER', ['url']), style={"backgroundColor": "#f0f0f0"}),
-
-    html.H4("🧾 10 dernières entrées — PAGES_A_VISITER"),
-    html.Pre(lire_derniers_enregistrements('PAGES_A_VISITER', ['url', 'profondeur', 'date_visite']), style={"backgroundColor": "#f0f0f0"}),
-
-    html.H4("🧾 10 dernières entrées — PAGE_VISITEE"),
-    html.Pre(lire_derniers_enregistrements('PAGE_VISITEE', ['url', 'date_visite']), style={"backgroundColor": "#f0f0f0"}),
-
-    html.H4("🧾 10 dernières entrées — CONTENU_RECUPERE"),
-    html.Pre(lire_derniers_enregistrements('CONTENU_RECUPERE', ['date', 'mots_cles', 'titre', 'site']), style={"backgroundColor": "#f0f0f0"})
+    html.Div(id="show-contenu")
 ])
+
+@callback(
+    Output("show-contenu", "children"),
+    Input("show-rafraichissement", "n_intervals")
+)
+def rafraichir(n):
+    contenu = []
+
+    tables = ["CONTENU_RECUPERE", "PAGES_A_VISITER", "PAGE_VISITEE", "SITES_A_VISITER", "MOTS_CLES"]
+    for nom in tables:
+        contenu.append(html.H4(f"📄 Table {nom} (10 dernières entrées)"))
+        contenu.append(lire_table(nom, limit=10))
+        contenu.append(html.Hr())
+
+    fichiers = ["keywords.txt", "url.txt", "conf.txt"]
+    for nom in fichiers:
+        chemin = os.path.join(CONFIG_DIR, nom)
+        contenu.append(lire_fichier(chemin))
+        contenu.append(html.Hr())
+
+    return contenu
