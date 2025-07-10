@@ -6,7 +6,7 @@ import os
 from common import lire_conf
 
 # Enregistrement de la page Log
-dash.register_page(__name__, path="/log", name="📜 Log")
+dash.register_page(__name__, path="/log", name="🗞️ LOGS - Fonctionnement du Scrapper")
 
 # Chargement de la configuration
 config = lire_conf()
@@ -15,7 +15,7 @@ refresh_interval = int(config.get("log_refresh", 2000))
 
 # Mise en page
 layout = html.Div([
-    html.H4("Derniers logs du scrapper NINJA"),
+    html.H2("🗞️ Derniers logs du scrapper NINJA"),
     html.Pre(id="log-output", style={
         "backgroundColor": "#111",
         "color": "#0f0",
@@ -40,7 +40,7 @@ def rafraichir_log(_):
         return "> Aucun fichier log trouvé"
     try:
         with open(log_path, "r", encoding="utf-8") as f:
-            lignes = f.readlines()[-15:]
+            lignes = f.readlines()[-30:]
             return "".join(lignes)
     except Exception as e:
         return f"> Erreur de lecture du fichier log : {e}"
