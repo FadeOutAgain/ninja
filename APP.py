@@ -5,7 +5,7 @@ from dash import html, dcc
 from dash.dependencies import Input, Output
 
 app = dash.Dash(__name__, use_pages=True, suppress_callback_exceptions=True)
-app.title = "🕵️ DarkWeb Scraper - Interface de Visualisation"
+app.title = "🥷️ NINJA - Interface"
 
 app.layout = html.Div([
     # Police Roboto depuis Google Fonts
@@ -15,7 +15,7 @@ app.layout = html.Div([
     ),
 
     html.Div([
-        html.H1("🕵️ DarkWeb Scraper", style={"textAlign": "center"}),
+        html.H1("️🥷 NINJA", style={"textAlign": "center"}),
 
         dcc.Tabs(
             id="tabs",
