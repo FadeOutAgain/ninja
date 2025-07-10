@@ -7,7 +7,7 @@ import pandas as pd
 from common import lire_conf, lire_table
 
 # Enregistrement de la page Stats
-dash.register_page(__name__, path="/stats", name="📈 Stats")
+dash.register_page(__name__, path="/stats", name="📈 STATS - Métriques")
 
 # Récupération du chemin de la base
 config = lire_conf()
@@ -23,11 +23,12 @@ except Exception as e:
 try:
     if 'profondeur' in df_visites.columns:
         profondeur_count = df_visites['profondeur'].value_counts().sort_index().reset_index()
+        profondeur_count.columns = ['profondeur', 'count']
         fig_profondeur = px.bar(
             profondeur_count,
-            x='index',
-            y='profondeur',
-            labels={'index': 'Profondeur', 'profondeur': 'Pages'},
+            x='profondeur',
+            y='count',
+            labels={'profondeur': 'Profondeur', 'count': 'Pages'},
             title='Nombre de pages visitées par profondeur'
         )
     else:
@@ -40,10 +41,11 @@ try:
     if 'url' in df_visites.columns:
         df_visites['domaine'] = df_visites['url'].apply(lambda x: x.split('/')[2] if '//' in x else x)
         domaine_count = df_visites['domaine'].value_counts().reset_index()
+        domaine_count.columns = ['domaine', 'count']
         fig_domaines = px.pie(
             domaine_count,
-            names='index',
-            values='domaine',
+            names='domaine',
+            values='count',
             title='Répartition des pages visitées par domaine'
         )
     else:
@@ -53,19 +55,19 @@ except Exception as e:
 
 # Graphique 3 : Chronologie des visites
 try:
-    if 'date' in df_visites.columns:
-        df_visites['date'] = pd.to_datetime(df_visites['date'], errors='coerce')
-        df_visites = df_visites.dropna(subset=['date'])
-        df_visites['heure'] = df_visites['date'].dt.floor('min')
-        timeline = df_visites.groupby('heure').size().reset_index(name='Visites')
+    if 'date_visite' in df_visites.columns:
+        df_visites['date_visite'] = pd.to_datetime(df_visites['date_visite'], errors='coerce')
+        df_visites = df_visites.dropna(subset=['date_visite'])
+        df_visites['minute'] = df_visites['date_visite'].dt.floor('min')
+        timeline = df_visites.groupby('minute').size().reset_index(name='Visites')
         fig_timeline = px.line(
             timeline,
-            x='heure',
+            x='minute',
             y='Visites',
             title='Nombre de visites dans le temps'
         )
     else:
-        fig_timeline = px.line(title="Colonne 'date' absente")
+        fig_timeline = px.line(title="Colonne 'date_visite' absente")
 except Exception as e:
     fig_timeline = px.line(title=f"Erreur chronologie : {e}")
 
