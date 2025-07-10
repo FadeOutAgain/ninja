@@ -6,7 +6,7 @@ import sqlite3
 import math
 from datetime import datetime
 
-dash.register_page(__name__, path="/dash", name="📁 DASH")
+dash.register_page(__name__, path="/dash", name="📁 DASH - Contenus pertinents")
 
 DB_PATH = "db/scraper_data.db"
 LIMITE_PAR_PAGE = 20
@@ -22,13 +22,13 @@ def lire_contenus(filtre_site, filtre_mot, recherche_libre, page):
         where_clauses.append("site = ?")
         params.append(filtre_site)
 
-    if filtre_mot:
+    if filtre_mot not in (None, ""):
         where_clauses.append("mots_cles LIKE ?")
         params.append(f"%{filtre_mot}%")
 
     if recherche_libre:
-        where_clauses.append("(titre LIKE ? OR texte LIKE ?)")
-        params.extend([f"%{recherche_libre}%", f"%{recherche_libre}%"])
+        where_clauses.append("(titre LIKE ? OR texte LIKE ? OR mots_cles LIKE ?)")
+        params.extend([f"%{recherche_libre}%"] * 3)
 
     where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
@@ -86,7 +86,7 @@ def temps_ecoule(date_str):
         return "?"
 
 layout = html.Div([
-    html.H3("📁 Contenus pertinents récupérés"),
+    html.H2("📁 Contenus pertinents récupérés"),
 
     html.Div([
         html.Div([
@@ -117,9 +117,22 @@ layout = html.Div([
                 type="text",
                 placeholder="Recherche libre...",
                 debounce=True,
-                style={"width": "100%"}
+                style={
+                    "width": "100%",
+                    "height": "38px",
+                    "padding": "6px 10px",
+                    "fontSize": "14px",
+                    "borderRadius": "4px",
+                    "border": "1px solid #ccc",
+                    "boxSizing": "border-box"
+                }
             )
-        ], style={"width": "30%", "display": "inline-block"})
+        ], style={
+            "width": "30%",
+            "display": "inline-block",
+            "verticalAlign": "top",
+            "marginTop": "-2px"
+        })
     ], style={"marginBottom": "20px"}),
 
     html.Div(id="dash-table-contenus"),
@@ -127,11 +140,16 @@ layout = html.Div([
 
     dcc.Store(id="dash-page-actuelle", data=1),
 
-    # ✅ Déclaration invisible pour éviter les erreurs "nonexistent Input"
     html.Div([
         html.Button("⏮️", id="dash-prev", style={"display": "none"}),
         html.Button("⏭️", id="dash-next", style={"display": "none"})
-    ], style={"display": "none"})
+    ], style={"display": "none"}),
+
+    dcc.Interval(
+        id="dash-rafraichissement-auto",
+        interval=30 * 1000,
+        n_intervals=0
+    )
 ])
 
 @callback(
@@ -165,22 +183,32 @@ def mettre_a_jour_page(prev_clicks, next_clicks, site, mot, recherche, page_actu
     Output("dash-table-contenus", "children"),
     Output("dash-pagination", "children"),
     Input("dash-page-actuelle", "data"),
+    Input("dash-rafraichissement-auto", "n_intervals"),
     State("dash-filtre-site", "value"),
     State("dash-filtre-mot", "value"),
     State("dash-recherche-libre", "value")
 )
-def afficher_contenus(page, site, mot, recherche):
+def afficher_contenus(page, _, site, mot, recherche):
     donnees, total = lire_contenus(site, mot, recherche, page)
     pages_totales = max(1, math.ceil(total / LIMITE_PAR_PAGE))
 
     lignes = []
     for date, mots, titre, site, url in donnees:
+        # Lire le texte complet associé à cette URL
+        conn = sqlite3.connect(DB_PATH)
+        cur = conn.cursor()
+        cur.execute("SELECT texte FROM CONTENU_RECUPERE WHERE url = ? LIMIT 1", (url,))
+        row = cur.fetchone()
+        conn.close()
+        texte = row[0] if row else ""
+
         lignes.append(html.Tr([
             html.Td(html.B(mots, style={"color": "red"})),
-            html.Td(html.A(titre, href=url, target="_blank")),
+            html.Td(html.A(titre, href=url, target="_blank", title=texte[:500])),
             html.Td(site, style={"fontSize": "small", "color": "gray", "whiteSpace": "nowrap"}),
             html.Td(temps_ecoule(date), style={"fontSize": "small", "color": "#444", "whiteSpace": "nowrap"})
         ]))
+
 
     tableau = html.Table([
         html.Thead(html.Tr([
