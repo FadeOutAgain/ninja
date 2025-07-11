@@ -1,28 +1,36 @@
-cea.fr
-beaune
-dijon
-french
+valduc
+commissariat
+atomique
+dissuasion
+nucléaire
 nuclear
 radioactive
-valduc
-mail.edu
-root
-ftp
-credit cards
-cvv
-ssn
-passwords
-credentials
-token
-auth
-OTP
-exploit 
-ransomware
-Cobalt Strike
-metasploit
-shell
-webmail
-sql
-rdp
-cpanel
+radioactif
+plutonium
+uranium
+cea.fr
+beaune
+french
+spie
+atos
+clemessy
+eiffage
+sodexo
+transdev
 ssh
+ivanti
+symantec
+zonecentral
+prim'x
+acid cryptofiler
+microsoft office
+powershell
+sql server
+iis
+citrix
+vmware
+netapp
+business objects
+splunk
+mattermost
+grafana
