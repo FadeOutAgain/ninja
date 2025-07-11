@@ -6,6 +6,7 @@ from datetime import datetime
 from urllib.parse import urljoin, urlparse
 from bs4 import BeautifulSoup
 import pandas as pd
+import requests
 
 # Chargement de la configuration depuis le fichier config/conf.txt
 def charger_config():
@@ -23,6 +24,7 @@ def charger_config():
 # Lecture simplifiée de la configuration pour l'application APP.py (équivalent de charger_config)
 def lire_conf():
     return charger_config()
+
 
 # Récupère le chemin de la base de données depuis la conf
 def get_db_path():
@@ -123,3 +125,5 @@ def lire_urls():
             return [line.strip() for line in f if line.strip()]
     except:
         return []
+
+
