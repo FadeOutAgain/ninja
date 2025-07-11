@@ -5,7 +5,7 @@ import random
 from urllib.parse import urlparse, urljoin
 from bs4 import BeautifulSoup
 from colorama import Fore, Style, init
-init(autoreset=True)  # pour réinitialiser automatiquement les couleurs
+init(autoreset=True)
 
 import requests
 from datetime import datetime
@@ -61,8 +61,43 @@ def extraire_liens(base_url, html):
 def domaine(url):
     return urlparse(url).netloc
 
+def corriger_encodage_texte(texte):
+    try:
+        return texte.encode('latin1').decode('utf-8')
+    except UnicodeEncodeError:
+        return texte
+    except UnicodeDecodeError:
+        return texte
+
+def lire_telegram_config(path="config/telegram_secret.txt"):
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            lignes = f.readlines()
+        config = {}
+        for ligne in lignes:
+            if "=" in ligne:
+                cle, valeur = ligne.strip().split("=", 1)
+                config[cle.strip()] = valeur.strip()
+        return config.get("bot_token"), config.get("chat_id")
+    except Exception as e:
+        print(f"❌ Erreur lecture telegram_secret.txt : {e}")
+        return None, None
+
+def envoyer_alerte_telegram(message, bot_token, chat_id):
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    data = {"chat_id": chat_id, "text": message}
+    try:
+        r = requests.post(url, data=data, timeout=20)
+        if r.ok:
+            print(f"✅ Alerte Telegram envoyée : {message}")
+        else:
+            print(f"❌ Erreur Telegram : {r.status_code} - {r.text}")
+    except Exception as e:
+        print(f"🚫 Échec envoi Telegram : {e}")
+
 # === Initialisation ===
 config = charger_config()
+bot_token, chat_id = lire_telegram_config()
 log_file = config["log_file"]
 db_path = config["db_path"]
 
@@ -99,45 +134,37 @@ for url in sites:
     """, (url,))
 conn.commit()
 
-# Suppression des PAGES_A_VISITER hors SITES_A_VISITER
-
+# Nettoyage des PAGES_A_VISITER hors domaine
 cur.execute("SELECT url FROM PAGES_A_VISITER")
 pages = cur.fetchall()
-
 urls_a_supprimer = [
     (url,) for (url,) in pages
     if not any(url.startswith(site) for site in sites)
 ]
-
 if urls_a_supprimer:
     cur.executemany("DELETE FROM PAGES_A_VISITER WHERE url = ?", urls_a_supprimer)
     log(f"🧹 {len(urls_a_supprimer)} URL supprimée(s) de PAGES_A_VISITER (hors domaine)", log_file)
 else:
     log("🧹 Aucune URL hors domaine à supprimer dans PAGES_A_VISITER", log_file)
-
 conn.commit()
 
-
-
-# Nettoyage : suppression des contenus récupérés hors domaine
+# Nettoyage des contenus récupérés hors domaine
 cur.execute("SELECT url FROM CONTENU_RECUPERE")
 contenus = cur.fetchall()
-
 urls_contenus_a_supprimer = [
     (url,) for (url,) in contenus
     if not any(url.startswith(site) for site in sites)
 ]
-
 if urls_contenus_a_supprimer:
     cur.executemany("DELETE FROM CONTENU_RECUPERE WHERE url = ?", urls_contenus_a_supprimer)
     log(f"🧹 {len(urls_contenus_a_supprimer)} contenu(s) supprimé(s) de CONTENU_RECUPERE (hors domaine)", log_file)
 else:
     log("🧹 Aucun contenu hors domaine à supprimer dans CONTENU_RECUPERE", log_file)
-
 conn.commit()
 
-
-
+# Message Telegram au démarrage
+if bot_token and chat_id:
+    envoyer_alerte_telegram("🏁 Scraper NINJA démarré", bot_token, chat_id)
 
 # === Boucle d'exploration ===
 expiration_minutes = config["expiration"]
@@ -154,24 +181,21 @@ while True:
     cur.execute("""
         SELECT url, profondeur FROM PAGES_A_VISITER
         WHERE date_visite IS NOT NULL
-          AND datetime(date_visite) <= datetime('now', '-1 day')
+          AND datetime(date_visite) <= datetime('now', ?)
         ORDER BY RANDOM()
-    """)
+    """, (f"-{expiration_minutes} minutes",))
     anciennes = cur.fetchall()
+
     lignes = non_visitees + anciennes
+    log(f"📋 Pages à explorer : {len(non_visitees)} non visitées + {len(anciennes)} anciennes (>{expiration_minutes} min)", log_file)
 
-    log(f"📋 Pages à explorer : {len(non_visitees)} non visitées + {len(anciennes)} anciennes (>{config['expiration']} min)", log_file)
-
-    
     if not lignes:
         log("🛑 Aucune page à visiter. Fin du scraping.", log_file)
-
         cur.execute("SELECT COUNT(*) FROM CONTENU_RECUPERE")
         contenus = cur.fetchone()[0]
         cur.execute("SELECT COUNT(*) FROM PAGE_VISITEE")
         visitees = cur.fetchone()[0]
         log(f"🔚 Statistiques : {visitees} pages visitées – {contenus} contenus collectés", log_file)
-
         break
 
     for url, profondeur in lignes:
@@ -181,30 +205,19 @@ while True:
         try:
             response = requests.get(url, timeout=10)
             html = response.text
-            texte = nettoyer_texte(html)
+            texte = corriger_encodage_texte(nettoyer_texte(html))
 
             horodatage = maintenant.strftime("%Y-%m-%d %H:%M:%S")
-            cur.execute("""
-                UPDATE PAGES_A_VISITER SET date_visite = ? WHERE url = ?
-            """, (horodatage, url))
-            cur.execute("""
-                INSERT OR IGNORE INTO PAGE_VISITEE (url, profondeur, date_visite)
-                VALUES (?, ?, ?)
-            """, (url, profondeur, horodatage))
+            cur.execute("UPDATE PAGES_A_VISITER SET date_visite = ? WHERE url = ?", (horodatage, url))
+            cur.execute("INSERT OR IGNORE INTO PAGE_VISITEE (url, profondeur, date_visite) VALUES (?, ?, ?)", (url, profondeur, horodatage))
 
             mots_trouves = [mot for mot in mots_cles if mot.lower() in texte.lower()]
             if mots_trouves:
                 titre = BeautifulSoup(html, "html.parser").title
-                titre = titre.text.strip() if titre else "(sans titre)"
+                titre = corriger_encodage_texte(titre.text.strip()) if titre else "(sans titre)"
 
-                # Vérifie si ce contenu a déjà été enregistré (même URL, même texte)
-                cur.execute("""
-                    SELECT 1 FROM CONTENU_RECUPERE
-                    WHERE url = ? AND texte = ?
-                """, (url, texte[:1000]))
+                cur.execute("SELECT 1 FROM CONTENU_RECUPERE WHERE url = ? AND texte = ?", (url, texte[:1000]))
                 existe_deja = cur.fetchone()
-
-                # Et si ce n'est pas le cas, on ajoute dans CONTENU_RECUPERE 
 
                 if not existe_deja:
                     cur.execute("""
@@ -218,12 +231,14 @@ while True:
                         domaine(url),
                         url
                     ))
-                    detection_msg = f"⚠️  Mot(s)-clé détecté(s) : {', '.join(mots_trouves)} dans {titre}"
-                    log(detection_msg, log_file)
+                    log(f"⚠️  Mot(s)-clé détecté(s) : {', '.join(mots_trouves)} dans {titre}", log_file)
+
+                    if bot_token and chat_id:
+                        message = f"🔎 Mot-clé détecté : {', '.join(mots_trouves)}\n🌐 {titre}"
+                        envoyer_alerte_telegram(message, bot_token, chat_id)
                 else:
                     log(f"🔁 Aucun ajout : contenu déjà connu pour {url}", log_file)
 
-            # Ajouter nouveaux liens
             if profondeur < max_depth:
                 for lien in extraire_liens(url, html):
                     if domaine(lien) != domaine(url):
@@ -236,19 +251,14 @@ while True:
                             INSERT INTO PAGES_A_VISITER (url, profondeur, date_visite)
                             VALUES (?, ?, NULL)
                         """, (lien, profondeur + 1))
-                        print(Fore.CYAN + " Ajout d'une page à visiter :"+url)
+                        print(Fore.CYAN + " Ajout d'une page à visiter :" + url)
 
             conn.commit()
             time.sleep(delay_seconds)
 
         except Exception as e:
             log(f"Erreur sur {url} : {e}", log_file)
-            cur.execute("""
-                UPDATE PAGES_A_VISITER SET date_visite = ? WHERE url = ?
-            """, (maintenant.strftime("%Y-%m-%d %H:%M:%S"), url))
-            cur.execute("""
-                INSERT OR IGNORE INTO PAGE_VISITEE (url, profondeur, date_visite)
-                VALUES (?, ?, ?)
-            """, (url, profondeur, maintenant.strftime("%Y-%m-%d %H:%M:%S")))
+            cur.execute("UPDATE PAGES_A_VISITER SET date_visite = ? WHERE url = ?", (maintenant.strftime("%Y-%m-%d %H:%M:%S"), url))
+            cur.execute("INSERT OR IGNORE INTO PAGE_VISITEE (url, profondeur, date_visite) VALUES (?, ?, ?)", (url, profondeur, maintenant.strftime("%Y-%m-%d %H:%M:%S")))
             conn.commit()
             time.sleep(delay_seconds)
